@@ -1,10 +1,10 @@
 """
 OFFLINE GENIUS Desktop UI.
 
-A lightweight prototype interface for the
-private, local-first AI workspace.
+Private, Multimodal AI — When the Cloud Isn't an Option.
 """
 
+import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -15,6 +15,10 @@ class OfflineGeniusApp:
 
     def __init__(self, root):
         self.root = root
+
+        # Knowledge Vault manager.
+        # Documents are kept in memory for this prototype.
+        self.document_manager = None
 
         root.title("OFFLINE GENIUS")
         root.geometry("900x600")
@@ -28,7 +32,11 @@ class OfflineGeniusApp:
     def create_header(self):
         """Create application header."""
 
-        header = tk.Frame(self.root, padx=20, pady=15)
+        header = tk.Frame(
+            self.root,
+            padx=20,
+            pady=15,
+        )
         header.pack(fill="x")
 
         title = tk.Label(
@@ -55,7 +63,11 @@ class OfflineGeniusApp:
             padx=15,
             pady=10,
         )
-        panel.pack(fill="x", padx=20, pady=5)
+        panel.pack(
+            fill="x",
+            padx=20,
+            pady=5,
+        )
 
         self.status_label = tk.Label(
             panel,
@@ -71,8 +83,15 @@ class OfflineGeniusApp:
     def create_chat_area(self):
         """Create the main AI interaction area."""
 
-        frame = tk.Frame(self.root, padx=20, pady=10)
-        frame.pack(fill="both", expand=True)
+        frame = tk.Frame(
+            self.root,
+            padx=20,
+            pady=10,
+        )
+        frame.pack(
+            fill="both",
+            expand=True,
+        )
 
         label = tk.Label(
             frame,
@@ -87,7 +106,11 @@ class OfflineGeniusApp:
             wrap="word",
             state="disabled",
         )
-        self.chat.pack(fill="both", expand=True, pady=8)
+        self.chat.pack(
+            fill="both",
+            expand=True,
+            pady=8,
+        )
 
         input_frame = tk.Frame(frame)
         input_frame.pack(fill="x")
@@ -102,69 +125,145 @@ class OfflineGeniusApp:
             expand=True,
         )
 
+        self.question.bind(
+            "<Return>",
+            lambda event: self.ask_ai(),
+        )
+
         ask_button = tk.Button(
             input_frame,
             text="ASK LOCAL AI",
             command=self.ask_ai,
         )
-        ask_button.pack(side="right", padx=(8, 0))
+        ask_button.pack(
+            side="right",
+            padx=(8, 0),
+        )
 
     def create_action_panel(self):
         """Create buttons for multimodal features."""
 
-        panel = tk.Frame(self.root, padx=20, pady=15)
+        panel = tk.Frame(
+            self.root,
+            padx=20,
+            pady=15,
+        )
         panel.pack(fill="x")
 
         tk.Button(
             panel,
             text="GO OFFLINE",
             command=self.go_offline,
-        ).pack(side="left", padx=5)
+        ).pack(
+            side="left",
+            padx=5,
+        )
 
         tk.Button(
             panel,
             text="ADD DOCUMENT",
             command=self.add_document,
-        ).pack(side="left", padx=5)
+        ).pack(
+            side="left",
+            padx=5,
+        )
 
         tk.Button(
             panel,
             text="ANALYZE IMAGE",
             command=self.analyze_image,
-        ).pack(side="left", padx=5)
+        ).pack(
+            side="left",
+            padx=5,
+        )
 
         tk.Button(
             panel,
             text="PRIVACY STATUS",
             command=self.show_privacy,
-        ).pack(side="right", padx=5)
+        ).pack(
+            side="right",
+            padx=5,
+        )
 
     def add_message(self, message):
         """Add a message to the chat area."""
 
         self.chat.config(state="normal")
-        self.chat.insert("end", message + "\n\n")
+
+        self.chat.insert(
+            "end",
+            message + "\n\n",
+        )
+
         self.chat.config(state="disabled")
         self.chat.see("end")
 
     def ask_ai(self):
-        """Handle a local AI question."""
+        """Search the locally indexed Knowledge Vault."""
 
         question = self.question.get().strip()
 
         if not question:
             return
 
-        self.add_message("You: " + question)
-
-        response = (
-            "OFFLINE GENIUS: Your request is being "
-            "processed locally. No cloud upload is used "
-            "in this prototype."
+        self.add_message(
+            "You: " + question
         )
 
-        self.add_message(response)
-        self.question.delete(0, "end")
+        # No document has been added yet.
+        if self.document_manager is None:
+            self.add_message(
+                "OFFLINE GENIUS:\n"
+                "No document is currently indexed.\n"
+                "Please click ADD DOCUMENT first."
+            )
+
+            self.question.delete(
+                0,
+                "end",
+            )
+            return
+
+        try:
+            results = self.document_manager.search(
+                question
+            )
+
+            if results:
+                self.add_message(
+                    "KNOWLEDGE VAULT — LOCAL RESULT"
+                )
+
+                for document in results:
+                    text = document.content.strip()
+
+                    # Limit the displayed text so the UI
+                    # does not become overloaded.
+                    excerpt = text[:1500]
+
+                    self.add_message(
+                        f"Document: {document.name}\n\n"
+                        f"{excerpt}"
+                    )
+
+            else:
+                self.add_message(
+                    "OFFLINE GENIUS:\n"
+                    "I couldn't find a matching passage "
+                    "in your locally indexed documents."
+                )
+
+        except Exception as error:
+            self.add_message(
+                "KNOWLEDGE VAULT ERROR:\n"
+                f"{error}"
+            )
+
+        self.question.delete(
+            0,
+            "end",
+        )
 
     def go_offline(self):
         """Activate local-first mode."""
@@ -178,12 +277,13 @@ class OfflineGeniusApp:
         )
 
         self.add_message(
-            "SYSTEM: OFFLINE MODE activated. "
+            "SYSTEM:\n"
+            "OFFLINE MODE activated.\n"
             "The workspace is ready for local processing."
         )
 
     def add_document(self):
-        """Select and process a local document."""
+        """Select and process a local PDF."""
 
         file_path = filedialog.askopenfilename(
             title="Select a document",
@@ -198,27 +298,44 @@ class OfflineGeniusApp:
             return
 
         try:
-            import sys
-
-            project_root = Path(__file__).resolve().parents[2]
+            # Make the project root available to Python.
+            project_root = Path(
+                __file__
+            ).resolve().parents[2]
 
             if str(project_root) not in sys.path:
-                sys.path.insert(0, str(project_root))
+                sys.path.insert(
+                    0,
+                    str(project_root),
+                )
 
-            from app.retrieval.document_manager import DocumentManager
+            from app.retrieval.document_manager import (
+                DocumentManager
+            )
 
-            manager = DocumentManager()
+            # Create the manager only once.
+            if self.document_manager is None:
+                self.document_manager = DocumentManager()
 
-            if Path(file_path).suffix.lower() == ".pdf":
-                success = manager.add_pdf(file_path)
+            path = Path(file_path)
+
+            if path.suffix.lower() == ".pdf":
+
+                success = self.document_manager.add_pdf(
+                    str(path)
+                )
+
             else:
                 success = False
 
             if success:
+
                 self.add_message(
-                    "KNOWLEDGE VAULT: Document processed locally.\n"
-                    f"File: {Path(file_path).name}\n"
-                    f"Indexed documents: {manager.count()}"
+                    "KNOWLEDGE VAULT:\n"
+                    "Document processed locally.\n"
+                    f"File: {path.name}\n"
+                    f"Indexed documents: "
+                    f"{self.document_manager.count()}"
                 )
 
                 messagebox.showinfo(
@@ -227,21 +344,27 @@ class OfflineGeniusApp:
                 )
 
             else:
+
                 messagebox.showwarning(
                     "Knowledge Vault",
                     "The document could not be processed.",
                 )
 
         except ImportError:
+
             messagebox.showerror(
                 "Missing Dependency",
-                "pypdf is not installed yet.",
+                "The PDF library is not installed.\n\n"
+                "Install it using:\n"
+                "python -m pip install pypdf",
             )
 
         except Exception as error:
+
             messagebox.showerror(
                 "Document Error",
-                f"Could not process the document.\n\n{error}",
+                "Could not process the document.\n\n"
+                f"{error}",
             )
 
     def analyze_image(self):
@@ -250,14 +373,19 @@ class OfflineGeniusApp:
         file_path = filedialog.askopenfilename(
             title="Select an image",
             filetypes=[
-                ("Image files", "*.png *.jpg *.jpeg *.webp"),
+                (
+                    "Image files",
+                    "*.png *.jpg *.jpeg *.webp",
+                ),
                 ("All files", "*.*"),
             ],
         )
 
         if file_path:
+
             self.add_message(
-                "VISION: Local image selected:\n"
+                "VISION:\n"
+                "Local image selected:\n"
                 + file_path
             )
 
@@ -277,7 +405,9 @@ def main():
     """Start the OFFLINE GENIUS desktop application."""
 
     root = tk.Tk()
+
     OfflineGeniusApp(root)
+
     root.mainloop()
 
 
