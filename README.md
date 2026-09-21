@@ -1,0 +1,2 @@
+# OFFLINE-GENIUS-Private-Multimodal-AI-When-the-Cloud-Isn-t-an-Option
+OFFLINE GENIUS is a Snapdragon optimized, privacy-first AI workspace that keeps essential AI assistance available when connectivity is unavailable, unreliable, restricted or undesirable. Instead of acting as another cloud chatbot it brings document intelligence, local search, vision, voice, and study assistance into one local-first experience.
