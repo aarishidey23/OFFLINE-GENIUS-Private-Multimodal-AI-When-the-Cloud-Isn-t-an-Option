@@ -22,8 +22,9 @@ class KnowledgeVault:
     """
     Local document storage and search layer.
 
-    The prototype uses simple text matching.
-    Semantic embeddings and FAISS can be connected later.
+    The prototype splits documents into smaller passages
+    so searches can return relevant sections instead of
+    the entire document.
     """
 
     SUPPORTED_EXTENSIONS = {
@@ -35,8 +36,15 @@ class KnowledgeVault:
         ".css",
     }
 
-    def __init__(self):
+    def __init__(
+        self,
+        chunk_size: int = 1200,
+        chunk_overlap: int = 200,
+    ):
         self.documents: list[Document] = []
+
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
 
     def add_file(self, file_path: str) -> bool:
         """Add a supported local text file to the vault."""
@@ -55,12 +63,10 @@ class KnowledgeVault:
                 errors="ignore",
             )
 
-            self.documents.append(
-                Document(
-                    name=path.name,
-                    path=str(path),
-                    content=content,
-                )
+            self.add_document(
+                name=path.name,
+                path=str(path),
+                content=content,
             )
 
             return True
@@ -68,35 +74,120 @@ class KnowledgeVault:
         except OSError:
             return False
 
+    def add_document(
+        self,
+        name: str,
+        path: str,
+        content: str,
+    ) -> None:
+        """
+        Add a document and split it into smaller passages.
+        """
+
+        if not content.strip():
+            return
+
+        chunks = self._create_chunks(content)
+
+        for number, chunk in enumerate(chunks, start=1):
+
+            self.documents.append(
+                Document(
+                    name=f"{name} — Section {number}",
+                    path=path,
+                    content=chunk,
+                )
+            )
+
+    def _create_chunks(self, content: str) -> list[str]:
+        """
+        Split document text into overlapping chunks.
+
+        Overlap helps preserve context between sections.
+        """
+
+        content = content.strip()
+
+        if not content:
+            return []
+
+        chunks = []
+
+        start = 0
+        content_length = len(content)
+
+        while start < content_length:
+
+            end = min(
+                start + self.chunk_size,
+                content_length,
+            )
+
+            chunk = content[start:end].strip()
+
+            if chunk:
+                chunks.append(chunk)
+
+            if end >= content_length:
+                break
+
+            start = end - self.chunk_overlap
+
+        return chunks
+
     def search(self, query: str) -> list[Document]:
         """
-        Search locally indexed documents.
+        Search locally indexed document sections.
 
-        Returns documents containing the search terms.
+        Results are ranked using simple word matching.
         """
 
         if not query.strip():
             return []
 
         query_words = query.lower().split()
-        results = []
+
+        scored_results = []
 
         for document in self.documents:
+
             content = document.content.lower()
 
-            if all(word in content for word in query_words):
-                results.append(document)
+            score = 0
 
-        return results
+            for word in query_words:
+                if word in content:
+                    score += 1
+
+            if score > 0:
+                scored_results.append(
+                    (score, document)
+                )
+
+        # Highest matching score first.
+        scored_results.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+
+        return [
+            document
+            for score, document in scored_results[:5]
+        ]
 
     def document_count(self) -> int:
-        """Return the number of documents currently indexed."""
+        """Return the number of indexed document sections."""
+
         return len(self.documents)
 
 
 if __name__ == "__main__":
+
     vault = KnowledgeVault()
 
     print("OFFLINE GENIUS - Local Knowledge Vault")
     print("Cloud upload: DISABLED")
-    print("Documents indexed:", vault.document_count())
+    print(
+        "Document sections indexed:",
+        vault.document_count(),
+    )
