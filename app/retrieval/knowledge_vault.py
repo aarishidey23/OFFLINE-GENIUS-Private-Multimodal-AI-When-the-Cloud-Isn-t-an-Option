@@ -1,8 +1,8 @@
 """
 Local Knowledge Vault for OFFLINE GENIUS.
 
-Stores and searches user-provided documents locally.
-No cloud upload is performed.
+Stores document sections locally and optionally uses
+semantic search to find the most relevant passages.
 """
 
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from pathlib import Path
 
 @dataclass
 class Document:
-    """Represents a locally indexed document."""
+    """Represents a locally indexed document section."""
 
     name: str
     path: str
@@ -22,9 +22,9 @@ class KnowledgeVault:
     """
     Local document storage and search layer.
 
-    The prototype splits documents into smaller passages
-    so searches can return relevant sections instead of
-    the entire document.
+    Documents are split into smaller sections.
+    Semantic search can be enabled when the local
+    embedding dependencies are available.
     """
 
     SUPPORTED_EXTENSIONS = {
@@ -46,8 +46,29 @@ class KnowledgeVault:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
+        self.semantic_search = None
+
+        # Semantic search is optional during development.
+        # If its dependencies are unavailable, the
+        # application can still use keyword search.
+        try:
+            from .semantic_search import SemanticSearch
+
+            self.semantic_search = SemanticSearch()
+
+        except Exception as error:
+            print(
+                "Semantic search unavailable."
+            )
+            print(
+                f"Reason: {error}"
+            )
+            print(
+                "Using local keyword search instead."
+            )
+
     def add_file(self, file_path: str) -> bool:
-        """Add a supported local text file to the vault."""
+        """Add a supported local text file."""
 
         path = Path(file_path)
 
@@ -80,31 +101,49 @@ class KnowledgeVault:
         path: str,
         content: str,
     ) -> None:
-        """
-        Add a document and split it into smaller passages.
-        """
+        """Split a document and add its sections locally."""
 
         if not content.strip():
             return
 
         chunks = self._create_chunks(content)
 
-        for number, chunk in enumerate(chunks, start=1):
+        for number, chunk in enumerate(
+            chunks,
+            start=1,
+        ):
 
-            self.documents.append(
-                Document(
-                    name=f"{name} — Section {number}",
-                    path=path,
-                    content=chunk,
-                )
+            document = Document(
+                name=f"{name} — Section {number}",
+                path=path,
+                content=chunk,
             )
 
-    def _create_chunks(self, content: str) -> list[str]:
-        """
-        Split document text into overlapping chunks.
+            self.documents.append(document)
 
-        Overlap helps preserve context between sections.
-        """
+            # Add the same section to the semantic index.
+            if self.semantic_search is not None:
+
+                try:
+                    self.semantic_search.add_text(
+                        chunk,
+                        document.name,
+                    )
+
+                except Exception as error:
+
+                    print(
+                        "Could not add section to "
+                        "semantic index:"
+                    )
+
+                    print(error)
+
+    def _create_chunks(
+        self,
+        content: str,
+    ) -> list[str]:
+        """Split document text into overlapping sections."""
 
         content = content.strip()
 
@@ -135,15 +174,62 @@ class KnowledgeVault:
 
         return chunks
 
-    def search(self, query: str) -> list[Document]:
+    def search(
+        self,
+        query: str,
+    ) -> list[Document]:
         """
-        Search locally indexed document sections.
+        Search the local Knowledge Vault.
 
-        Results are ranked using simple word matching.
+        Semantic search is preferred.
+        Keyword search is used as a fallback.
         """
 
         if not query.strip():
             return []
+
+        # Try semantic search first.
+        if self.semantic_search is not None:
+
+            try:
+
+                results = self.semantic_search.search(
+                    query,
+                    top_k=5,
+                )
+
+                if results:
+
+                    documents = []
+
+                    for result in results:
+
+                        documents.append(
+                            Document(
+                                name=result.document_name,
+                                path="",
+                                content=result.text,
+                            )
+                        )
+
+                    return documents
+
+            except Exception as error:
+
+                print(
+                    "Semantic search failed."
+                )
+
+                print(error)
+
+        # Fallback: keyword search.
+        return self._keyword_search(query)
+
+    def _keyword_search(
+        self,
+        query: str,
+    ) -> list[Document]:
+        """Search document sections using keywords."""
 
         query_words = query.lower().split()
 
@@ -156,15 +242,16 @@ class KnowledgeVault:
             score = 0
 
             for word in query_words:
+
                 if word in content:
                     score += 1
 
             if score > 0:
+
                 scored_results.append(
                     (score, document)
                 )
 
-        # Highest matching score first.
         scored_results.sort(
             key=lambda item: item[0],
             reverse=True,
@@ -172,11 +259,12 @@ class KnowledgeVault:
 
         return [
             document
-            for score, document in scored_results[:5]
+            for score, document
+            in scored_results[:5]
         ]
 
     def document_count(self) -> int:
-        """Return the number of indexed document sections."""
+        """Return the number of indexed sections."""
 
         return len(self.documents)
 
@@ -185,9 +273,22 @@ if __name__ == "__main__":
 
     vault = KnowledgeVault()
 
-    print("OFFLINE GENIUS - Local Knowledge Vault")
-    print("Cloud upload: DISABLED")
     print(
-        "Document sections indexed:",
+        "OFFLINE GENIUS - Local Knowledge Vault"
+    )
+
+    print(
+        "Cloud upload: DISABLED"
+    )
+
+    print(
+        "Semantic search:",
+        "AVAILABLE"
+        if vault.semantic_search is not None
+        else "FALLBACK MODE",
+    )
+
+    print(
+        "Indexed sections:",
         vault.document_count(),
     )
