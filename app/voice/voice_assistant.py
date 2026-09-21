@@ -1,64 +1,55 @@
 """
-Voice assistant workflow for OFFLINE GENIUS.
+Offline Voice Assistant for OFFLINE GENIUS.
 
-Connects local speech recognition with the local
-AI inference engine.
+Uses Windows built-in speech services.
+No cloud API is required.
 """
 
-from dataclasses import dataclass
-
-from ..inference.local_engine import LocalEngine
-from .voice_engine import VoiceEngine
+import subprocess
 
 
-@dataclass
-class VoiceAssistantResult:
-    """Result from the voice assistant workflow."""
-
-    spoken_text: str
-    response: str
-    model: str
-    device: str
-
-
-class VoiceAssistant:
-    """Connect speech input to the local AI engine."""
+class OfflineVoiceAssistant:
+    """Simple offline voice output using Windows SAPI."""
 
     def __init__(self):
-        self.voice_engine = VoiceEngine()
-        self.ai_engine = LocalEngine()
+        self.available = True
 
-    def process_audio(
-        self,
-        audio_path: str,
-    ) -> VoiceAssistantResult:
-        """
-        Process an audio file locally.
+    def speak(self, text: str) -> bool:
+        """Read text aloud using Windows built-in speech."""
 
-        Speech recognition and AI processing remain
-        inside the local application.
-        """
+        text = str(text).strip()
 
-        voice_result = self.voice_engine.transcribe(
-            audio_path
+        if not text:
+            return False
+
+        # Keep the PowerShell command safe for normal AI responses.
+        safe_text = text.replace("'", "''")
+
+        script = (
+            "$voice = New-Object -ComObject SAPI.SpVoice; "
+            f"$voice.Speak('{safe_text}')"
         )
 
-        ai_result = self.ai_engine.generate(
-            voice_result.text
-        )
+        try:
+            subprocess.Popen(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    script,
+                ],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
 
-        return VoiceAssistantResult(
-            spoken_text=voice_result.text,
-            response=ai_result.response,
-            model=ai_result.model,
-            device=ai_result.device,
-        )
+            return True
 
+        except Exception:
+            return False
 
-if __name__ == "__main__":
-    assistant = VoiceAssistant()
+    def stop(self):
+        """Placeholder for future voice-stop support."""
+        return None
 
-    print("OFFLINE GENIUS - Voice Assistant")
-    print("Speech processing: LOCAL")
-    print("AI processing: LOCAL")
-    print("Cloud upload: DISABLED")
+    def status(self) -> str:
+        """Return the current voice system status."""
+        return "WINDOWS OFFLINE SPEECH"

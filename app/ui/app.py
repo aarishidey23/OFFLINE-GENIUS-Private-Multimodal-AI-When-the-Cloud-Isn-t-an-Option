@@ -27,24 +27,27 @@ class OfflineGeniusApp:
 
         self.document_manager = None
         self.answer_generator = None
+        self.voice_assistant = None
 
         self.current_file = None
         self.current_image = None
 
         self.offline_mode = False
 
-        self.root.title("OFFLINE GENIUS")
-        self.root.geometry("1120x800")
-        self.root.minsize(900, 680)
+        self.root.title("OFFLINE GENIUS — Private Multimodal AI Workstation")
+        self.root.geometry("1120x820")
+        self.root.minsize(900, 700)
         self.root.configure(bg=self.BG)
 
+        self.init_voice()
         self.create_header()
         self.create_dashboard()
         self.create_chat_area()
         self.create_action_panel()
+        self.create_footer()
 
     # =========================================================
-    # PROJECT PATH
+    # PROJECT PATH & VOICE INITIALIZATION
     # =========================================================
 
     def project_root(self):
@@ -56,6 +59,67 @@ class OfflineGeniusApp:
             sys.path.insert(0, str(root))
 
         return root
+
+    def init_voice(self):
+        """Initialize the local voice assistant."""
+        try:
+            self.project_root()
+            from app.voice.voice_assistant import OfflineVoiceAssistant
+            self.voice_assistant = OfflineVoiceAssistant()
+        except Exception:
+            self.voice_assistant = None
+
+    def speak_text(self, text: str):
+        """Helper to speak clean text using the voice assistant."""
+        if self.voice_assistant and text:
+            clean = [
+                line for line in str(text).split("\n") 
+                if "Users\\" not in line and "AppData\\" not in line and "Document(" not in line
+            ]
+            if clean:
+                self.voice_assistant.speak(" ".join(clean))
+
+    def speak_last_response(self):
+        """Extract and speak ONLY the clean answer line, filtering out file paths and headers."""
+        if not self.voice_assistant:
+            messagebox.showwarning("Voice Assistant", "Voice assistant is not available.")
+            return
+
+        content = self.chat.get("1.0", "end").strip()
+        if not content:
+            self.voice_assistant.speak("Offline Genius Voice Assistant Ready")
+            return
+
+        blocks = content.split("\n\n")
+        
+        for block in reversed(blocks):
+            lines = [line.strip() for line in block.split("\n") if line.strip()]
+            if not lines:
+                continue
+
+            if any(lines[0].startswith(prefix) for prefix in ["YOU:", "SYSTEM:", "SOURCE:", "VISION ANALYSIS:"]):
+                continue
+
+            clean_lines = []
+            for line in lines:
+                if (
+                    not line.startswith("OFFLINE GENIUS:") 
+                    and not line.startswith("OFFLINE VISION:")
+                    and not line.startswith("Document(")
+                    and "LOCAL RETRIEVAL" not in line
+                    and "NO CLOUD UPLOAD" not in line
+                    and "Users\\" not in line
+                    and "AppData\\" not in line
+                    and ".pdf" not in line.lower()
+                ):
+                    clean_lines.append(line)
+
+            if clean_lines:
+                speech_text = " ".join(clean_lines)
+                self.voice_assistant.speak(speech_text)
+                return
+
+        self.voice_assistant.speak("No clean answer found to read.")
 
     # =========================================================
     # HEADER
@@ -388,15 +452,19 @@ class OfflineGeniusApp:
         panel = tk.Frame(
             self.root,
             bg=self.PANEL,
-            padx=25,
-            pady=15,
+            padx=15,
+            pady=10,
         )
 
         panel.pack(fill="x")
 
+        # Row 1: System & Voice
+        row1 = tk.Frame(panel, bg=self.PANEL)
+        row1.pack(fill="x", pady=(0, 5))
+
         self.offline_button = tk.Button(
-            panel,
-            text="⚡  GO OFFLINE",
+            row1,
+            text="⚡ GO OFFLINE",
             command=self.go_offline,
             bg=self.GREEN,
             fg="#08130D",
@@ -404,91 +472,30 @@ class OfflineGeniusApp:
             activeforeground="#08130D",
             relief="flat",
             borderwidth=0,
-            padx=16,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
         )
-
-        self.offline_button.pack(
-            side="left",
-            padx=5,
-        )
+        self.offline_button.pack(side="left", padx=3)
 
         tk.Button(
-            panel,
-            text="＋  ADD DOCUMENT",
-            command=self.add_document,
-            bg=self.PANEL_LIGHT,
-            fg=self.TEXT,
-            activebackground=self.BORDER,
-            activeforeground=self.TEXT,
-            relief="flat",
-            borderwidth=0,
-            padx=14,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(
-            side="left",
-            padx=5,
-        )
-
-        tk.Button(
-            panel,
-            text="◈  ANALYZE IMAGE",
-            command=self.analyze_image,
-            bg=self.PANEL_LIGHT,
-            fg=self.TEXT,
-            activebackground=self.BORDER,
-            activeforeground=self.TEXT,
-            relief="flat",
-            borderwidth=0,
-            padx=14,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(
-            side="left",
-            padx=5,
-        )
-
-        tk.Button(
-            panel,
-            text="◉  ASK ABOUT IMAGE",
-            command=self.ask_about_image,
-            bg=self.PURPLE,
+            row1,
+            text="🎤 SPEAK",
+            command=self.speak_last_response,
+            bg=self.BLUE,
             fg="white",
-            activebackground=self.PURPLE,
+            activebackground=self.BLUE,
             activeforeground="white",
             relief="flat",
             borderwidth=0,
-            padx=14,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(
-            side="left",
-            padx=5,
-        )
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=3)
 
         tk.Button(
-            panel,
-            text="👁  DESCRIBE IMAGE",
-            command=self.describe_image,
-            bg=self.PANEL_LIGHT,
-            fg=self.TEXT,
-            activebackground=self.BORDER,
-            activeforeground=self.TEXT,
-            relief="flat",
-            borderwidth=0,
-            padx=14,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(
-            side="left",
-            padx=5,
-        )
-
-        tk.Button(
-            panel,
-            text="🔒  PRIVACY STATUS",
+            row1,
+            text="🔒 PRIVACY STATUS",
             command=self.show_privacy,
             bg=self.PANEL_LIGHT,
             fg=self.TEXT,
@@ -496,13 +503,106 @@ class OfflineGeniusApp:
             activeforeground=self.TEXT,
             relief="flat",
             borderwidth=0,
-            padx=14,
-            pady=9,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(
-            side="right",
-            padx=5,
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="right", padx=3)
+
+        # Row 2: Multimodal Tools
+        row2 = tk.Frame(panel, bg=self.PANEL)
+        row2.pack(fill="x")
+
+        tk.Button(
+            row2,
+            text="＋ ADD DOC",
+            command=self.add_document,
+            bg=self.PANEL_LIGHT,
+            fg=self.TEXT,
+            activebackground=self.BORDER,
+            activeforeground=self.TEXT,
+            relief="flat",
+            borderwidth=0,
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=3)
+
+        tk.Button(
+            row2,
+            text="◈ ANALYZE IMAGE",
+            command=self.analyze_image,
+            bg=self.PANEL_LIGHT,
+            fg=self.TEXT,
+            activebackground=self.BORDER,
+            activeforeground=self.TEXT,
+            relief="flat",
+            borderwidth=0,
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=3)
+
+        tk.Button(
+            row2,
+            text="◉ ASK IMAGE",
+            command=self.ask_about_image,
+            bg=self.PURPLE,
+            fg="white",
+            activebackground=self.PURPLE,
+            activeforeground="white",
+            relief="flat",
+            borderwidth=0,
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=3)
+
+        tk.Button(
+            row2,
+            text="👁 DESCRIBE IMAGE",
+            command=self.describe_image,
+            bg=self.PANEL_LIGHT,
+            fg=self.TEXT,
+            activebackground=self.BORDER,
+            activeforeground=self.TEXT,
+            relief="flat",
+            borderwidth=0,
+            padx=12,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=3)
+
+    # =========================================================
+    # SYSTEM FOOTER
+    # =========================================================
+
+    def create_footer(self):
+
+        footer = tk.Frame(
+            self.root,
+            bg="#080C18",
+            padx=25,
+            pady=6,
+            highlightbackground=self.BORDER,
+            highlightthickness=1,
         )
+        footer.pack(fill="x", side="bottom")
+
+        tk.Label(
+            footer,
+            text="SYSTEM READY  •  LOCAL ENGINE ACTIVE  •  ZERO CLOUD DEPENDENCY",
+            bg="#080C18",
+            fg=self.MUTED,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side="left")
+
+        tk.Label(
+            footer,
+            text="OFFLINE GENIUS v1.0",
+            bg="#080C18",
+            fg=self.BLUE,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side="right")
 
     # =========================================================
     # CHAT OUTPUT
@@ -571,9 +671,6 @@ class OfflineGeniusApp:
 
                 self.project_root()
 
-                # IMPORTANT:
-                # This is the NEW vision layer.
-                # There is NO OfflineVisionQuestion here.
                 from app.vision.local_vision import (
                     LocalVisionUnderstanding
                 )
@@ -598,6 +695,8 @@ class OfflineGeniusApp:
                     "LOCAL IMAGE PROCESSING • "
                     "NO CLOUD UPLOAD"
                 )
+
+                self.speak_text(answer)
 
             except Exception as error:
 
@@ -624,11 +723,13 @@ class OfflineGeniusApp:
 
         if self.document_manager is None:
 
+            msg = "No document is currently indexed. Please click ADD DOCUMENT first."
             self.add_message(
                 "OFFLINE GENIUS:\n"
-                "No document is currently indexed.\n"
-                "Please click ADD DOCUMENT first."
+                + msg
             )
+
+            self.speak_text(msg)
 
             self.question.delete(
                 0,
@@ -645,11 +746,13 @@ class OfflineGeniusApp:
 
             if not results:
 
+                msg = "I couldn't find enough information in your local documents."
                 self.add_message(
                     "OFFLINE GENIUS:\n"
-                    "I couldn't find enough information "
-                    "in your local documents."
+                    + msg
                 )
+
+                self.speak_text(msg)
 
                 self.question.delete(
                     0,
@@ -686,6 +789,8 @@ class OfflineGeniusApp:
                 "LOCAL RETRIEVAL • "
                 "NO CLOUD UPLOAD"
             )
+
+            self.speak_text(answer_result.answer)
 
         except Exception as error:
 
@@ -741,7 +846,7 @@ class OfflineGeniusApp:
         )
 
         self.offline_button.config(
-            text="✓  OFFLINE MODE ACTIVE",
+            text="✓ OFFLINE MODE ACTIVE",
             bg=self.GREEN,
         )
 
@@ -958,17 +1063,6 @@ class OfflineGeniusApp:
 
             self.project_root()
 
-            # =================================================
-            # NEW LOCAL VISION SYSTEM
-            # =================================================
-            # This is intentionally NOT:
-            #
-            # from app.vision.vision_question import ...
-            #
-            # The old vision_question system has been removed
-            # from the application.
-            # =================================================
-
             from app.vision.local_vision import (
                 LocalVisionUnderstanding
             )
@@ -993,6 +1087,8 @@ class OfflineGeniusApp:
                 "LOCAL IMAGE PROCESSING • "
                 "NO CLOUD UPLOAD"
             )
+
+            self.speak_text(answer)
 
         except Exception as error:
 
@@ -1043,6 +1139,8 @@ class OfflineGeniusApp:
                 "LOCAL IMAGE PROCESSING • "
                 "NO CLOUD UPLOAD"
             )
+
+            self.speak_text(description)
 
         except Exception as error:
 
