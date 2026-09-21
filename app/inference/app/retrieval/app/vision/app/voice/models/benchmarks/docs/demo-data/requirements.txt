@@ -1,6 +1,0 @@
-numpy
-pandas
-pillow
-pypdf
-sentence-transformers
-faiss-cpu
