@@ -1,36 +1,24 @@
-"""
-OFFLINE GENIUS
-Private, Multimodal AI — When the Cloud Isn't an Option
+from flask import Flask, jsonify, request
 
-Application entry point.
-"""
+# Vercel requires a top-level variable named "app"
+app = Flask(__name__)
 
-from datetime import datetime
+@app.route("/status")
+def status():
+    return jsonify({
+        "online_ready": True,
+        "offline_capable": True,
+        "privacy_first": True,
+        "snapdragon_ready": True
+    })
 
+@app.route("/ask", methods=["POST"])
+def ask():
+    data = request.get_json()
+    question = data.get("question", "")
+    # Replace this with your actual inference logic
+    answer = f"You asked: {question}"
+    return jsonify({"answer": answer})
 
-APP_NAME = "OFFLINE GENIUS"
-TAGLINE = "Private, Multimodal AI — When the Cloud Isn't an Option"
-
-
-def show_status():
-    """Display the current local AI workspace status."""
-    print("=" * 60)
-    print(APP_NAME)
-    print(TAGLINE)
-    print("=" * 60)
-    print("Network: OFFLINE / LOCAL-FIRST")
-    print("Processing: LOCAL DEVICE")
-    print("Privacy: DATA STAYS ON THIS PC")
-    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-
-
-def main():
-    """Start the OFFLINE GENIUS workspace."""
-    show_status()
-    print("\nOFFLINE GENIUS is ready.")
-    print("Local AI modules will be connected here.")
-
-
-if __name__ == "__main__":
-    main()
+# IMPORTANT:
+# Do NOT include app.run() here — Vercel manages the server process.
