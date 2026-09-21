@@ -4,3 +4,4 @@ pillow
 pypdf
 sentence-transformers
 faiss-cpu
+flask
