@@ -6,6 +6,7 @@ private, local-first AI workspace.
 """
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox
 
 
@@ -182,7 +183,7 @@ class OfflineGeniusApp:
         )
 
     def add_document(self):
-        """Select a local document."""
+        """Select and process a local document."""
 
         file_path = filedialog.askopenfilename(
             title="Select a document",
@@ -193,10 +194,54 @@ class OfflineGeniusApp:
             ],
         )
 
-        if file_path:
-            self.add_message(
-                "SYSTEM: Local document selected:\n"
-                + file_path
+        if not file_path:
+            return
+
+        try:
+            import sys
+
+            project_root = Path(__file__).resolve().parents[2]
+
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+
+            from app.retrieval.document_manager import DocumentManager
+
+            manager = DocumentManager()
+
+            if Path(file_path).suffix.lower() == ".pdf":
+                success = manager.add_pdf(file_path)
+            else:
+                success = False
+
+            if success:
+                self.add_message(
+                    "KNOWLEDGE VAULT: Document processed locally.\n"
+                    f"File: {Path(file_path).name}\n"
+                    f"Indexed documents: {manager.count()}"
+                )
+
+                messagebox.showinfo(
+                    "Knowledge Vault",
+                    "Document successfully processed locally.",
+                )
+
+            else:
+                messagebox.showwarning(
+                    "Knowledge Vault",
+                    "The document could not be processed.",
+                )
+
+        except ImportError:
+            messagebox.showerror(
+                "Missing Dependency",
+                "pypdf is not installed yet.",
+            )
+
+        except Exception as error:
+            messagebox.showerror(
+                "Document Error",
+                f"Could not process the document.\n\n{error}",
             )
 
     def analyze_image(self):
