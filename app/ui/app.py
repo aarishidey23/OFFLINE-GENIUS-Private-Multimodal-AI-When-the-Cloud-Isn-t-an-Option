@@ -17,6 +17,7 @@ class OfflineGeniusApp:
         self.root = root
 
         self.document_manager = None
+        self.answer_generator = None
         self.current_file = None
 
         root.title("OFFLINE GENIUS")
@@ -84,7 +85,10 @@ class OfflineGeniusApp:
             text="No document loaded",
             font=("Arial", 9),
         )
-        self.file_label.pack(anchor="w", pady=(4, 0))
+        self.file_label.pack(
+            anchor="w",
+            pady=(4, 0),
+        )
 
     def create_chat_area(self):
         """Create the main AI interaction area."""
@@ -205,8 +209,44 @@ class OfflineGeniusApp:
         self.chat.config(state="disabled")
         self.chat.see("end")
 
+    def load_answer_generator(self):
+        """Load the local answer generator."""
+
+        if self.answer_generator is not None:
+            return True
+
+        try:
+            project_root = Path(
+                __file__
+            ).resolve().parents[2]
+
+            if str(project_root) not in sys.path:
+                sys.path.insert(
+                    0,
+                    str(project_root),
+                )
+
+            from app.inference.answer_generator import (
+                LocalAnswerGenerator
+            )
+
+            self.answer_generator = (
+                LocalAnswerGenerator()
+            )
+
+            return True
+
+        except Exception as error:
+
+            self.add_message(
+                "ANSWER GENERATOR ERROR:\n"
+                f"{error}"
+            )
+
+            return False
+
     def ask_ai(self):
-        """Search the locally indexed Knowledge Vault."""
+        """Search the local vault and generate a concise answer."""
 
         question = self.question.get().strip()
 
@@ -218,6 +258,7 @@ class OfflineGeniusApp:
         )
 
         if self.document_manager is None:
+
             self.add_message(
                 "OFFLINE GENIUS:\n"
                 "No document is currently indexed.\n"
@@ -228,47 +269,58 @@ class OfflineGeniusApp:
                 0,
                 "end",
             )
+
             return
 
         try:
+
             results = self.document_manager.search(
                 question
             )
 
-            if results:
-
-                self.add_message(
-                    "KNOWLEDGE VAULT — "
-                    f"{len(results)} RELEVANT SECTIONS FOUND"
-                )
-
-                for number, document in enumerate(
-                    results,
-                    start=1,
-                ):
-
-                    text = document.content.strip()
-
-                    excerpt = text[:1200]
-
-                    if len(text) > 1200:
-                        excerpt += "\n..."
-
-                    self.add_message(
-                        f"RELEVANT SECTION {number}\n"
-                        f"Document: {document.name}\n\n"
-                        f"{excerpt}"
-                    )
-
-            else:
+            if not results:
 
                 self.add_message(
                     "OFFLINE GENIUS:\n"
-                    "I couldn't find a matching passage "
-                    "in your locally indexed documents.\n\n"
-                    "Try using different words from the "
-                    "document."
+                    "I couldn't find enough information "
+                    "in your local documents."
                 )
+
+                self.question.delete(
+                    0,
+                    "end",
+                )
+
+                return
+
+            if not self.load_answer_generator():
+
+                self.question.delete(
+                    0,
+                    "end",
+                )
+
+                return
+
+            answer_result = (
+                self.answer_generator.generate(
+                    question,
+                    results,
+                )
+            )
+
+            self.add_message(
+                "OFFLINE GENIUS:\n"
+                + answer_result.answer
+            )
+
+            self.add_message(
+                "SOURCE:\n"
+                + answer_result.source
+                + "\n\n"
+                "LOCAL RETRIEVAL • "
+                "NO CLOUD UPLOAD"
+            )
 
         except Exception as error:
 
@@ -361,6 +413,7 @@ class OfflineGeniusApp:
                     "✓ Document processed locally.\n"
                     f"File: {path.name}\n"
                     "✓ Text split into searchable sections.\n"
+                    "✓ Semantic search enabled when available.\n"
                     "✓ No cloud upload."
                 )
 
@@ -439,3 +492,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+          
