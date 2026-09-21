@@ -16,9 +16,8 @@ class OfflineGeniusApp:
     def __init__(self, root):
         self.root = root
 
-        # Knowledge Vault manager.
-        # Documents are kept in memory for this prototype.
         self.document_manager = None
+        self.current_file = None
 
         root.title("OFFLINE GENIUS")
         root.geometry("900x600")
@@ -79,6 +78,13 @@ class OfflineGeniusApp:
             font=("Arial", 10, "bold"),
         )
         self.status_label.pack(anchor="w")
+
+        self.file_label = tk.Label(
+            panel,
+            text="No document loaded",
+            font=("Arial", 9),
+        )
+        self.file_label.pack(anchor="w", pady=(4, 0))
 
     def create_chat_area(self):
         """Create the main AI interaction area."""
@@ -208,10 +214,9 @@ class OfflineGeniusApp:
             return
 
         self.add_message(
-            "You: " + question
+            "YOU:\n" + question
         )
 
-        # No document has been added yet.
         if self.document_manager is None:
             self.add_message(
                 "OFFLINE GENIUS:\n"
@@ -231,30 +236,42 @@ class OfflineGeniusApp:
             )
 
             if results:
+
                 self.add_message(
-                    "KNOWLEDGE VAULT — LOCAL RESULT"
+                    "KNOWLEDGE VAULT — "
+                    f"{len(results)} RELEVANT SECTIONS FOUND"
                 )
 
-                for document in results:
+                for number, document in enumerate(
+                    results,
+                    start=1,
+                ):
+
                     text = document.content.strip()
 
-                    # Limit the displayed text so the UI
-                    # does not become overloaded.
-                    excerpt = text[:1500]
+                    excerpt = text[:1200]
+
+                    if len(text) > 1200:
+                        excerpt += "\n..."
 
                     self.add_message(
+                        f"RELEVANT SECTION {number}\n"
                         f"Document: {document.name}\n\n"
                         f"{excerpt}"
                     )
 
             else:
+
                 self.add_message(
                     "OFFLINE GENIUS:\n"
                     "I couldn't find a matching passage "
-                    "in your locally indexed documents."
+                    "in your locally indexed documents.\n\n"
+                    "Try using different words from the "
+                    "document."
                 )
 
         except Exception as error:
+
             self.add_message(
                 "KNOWLEDGE VAULT ERROR:\n"
                 f"{error}"
@@ -298,7 +315,7 @@ class OfflineGeniusApp:
             return
 
         try:
-            # Make the project root available to Python.
+
             project_root = Path(
                 __file__
             ).resolve().parents[2]
@@ -313,7 +330,6 @@ class OfflineGeniusApp:
                 DocumentManager
             )
 
-            # Create the manager only once.
             if self.document_manager is None:
                 self.document_manager = DocumentManager()
 
@@ -326,16 +342,26 @@ class OfflineGeniusApp:
                 )
 
             else:
+
                 success = False
 
             if success:
 
+                self.current_file = path.name
+
+                self.file_label.config(
+                    text=(
+                        f"📄 {path.name} — "
+                        "processed locally"
+                    )
+                )
+
                 self.add_message(
                     "KNOWLEDGE VAULT:\n"
-                    "Document processed locally.\n"
+                    "✓ Document processed locally.\n"
                     f"File: {path.name}\n"
-                    f"Indexed documents: "
-                    f"{self.document_manager.count()}"
+                    "✓ Text split into searchable sections.\n"
+                    "✓ No cloud upload."
                 )
 
                 messagebox.showinfo(
